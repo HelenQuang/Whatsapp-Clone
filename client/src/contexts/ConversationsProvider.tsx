@@ -1,5 +1,12 @@
-import { useContext, createContext, useState, useEffect } from 'react';
+import {
+  useContext,
+  createContext,
+  useState,
+  useEffect,
+  useCallback,
+} from 'react';
 import { useContacts } from './ContactsProvider';
+import { useSocket } from './SocketProvider';
 
 interface Conversations {
   recipients: string[];
@@ -45,6 +52,7 @@ export const ConversationsProvider: React.FC<{ children: React.ReactNode }> = ({
     useState<number>(0);
 
   const { contacts } = useContacts();
+  const { socket } = useSocket();
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
@@ -59,40 +67,48 @@ export const ConversationsProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   };
 
-  const addMessageToConversation = ({
-    recipients,
-    text,
-    sender,
-  }: {
-    recipients: string[];
-    text: string;
-    sender: string;
-  }) => {
-    setConversations((prevConversation: any) => {
-      let madeChange = false;
-      const newMessage = { text, sender };
+  const addMessageToConversation = useCallback(
+    ({
+      recipients,
+      text,
+      sender,
+    }: {
+      recipients: string[];
+      text: string;
+      sender: string;
+    }) => {
+      setConversations((prevConversation: any) => {
+        let madeChange = false;
+        const newMessage = { text, sender };
 
-      const newConversations = prevConversation.map((conversation: any) => {
-        if (conversation.recipients.toString() === recipients.toString()) {
-          madeChange = true;
-          return {
-            ...conversation,
-            messages: [...conversation.messages, newMessage],
-          };
+        const newConversations = prevConversation.map(
+          (conversation: { recipients: string[]; messages: [] }) => {
+            if (conversation.recipients.toString() === recipients.toString()) {
+              madeChange = true;
+
+              return {
+                ...conversation,
+                messages: [...conversation.messages, newMessage],
+              };
+            }
+
+            return conversation;
+          }
+        );
+
+        if (madeChange) {
+          return newConversations;
+        } else {
+          return [...prevConversation, { recipients, message: [newMessage] }];
         }
-
-        return conversation;
       });
-
-      if (madeChange) {
-        return newConversations;
-      } else {
-        return [...prevConversation, { recipients, message: [newMessage] }];
-      }
-    });
-  };
+    },
+    [setConversations]
+  );
 
   const sendMessage = (recipients: string[], text: string) => {
+    socket?.emit('send-message', { recipients, text });
+
     addMessageToConversation({
       recipients,
       text,
@@ -100,7 +116,19 @@ export const ConversationsProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   };
 
-  //Format again the conversation to see recipients' name and id instead of just a list of ids
+  useEffect(() => {
+    if (socket === null) {
+      return;
+    }
+    if (socket) {
+      socket.on('receive-message', addMessageToConversation);
+      return () => {
+        socket.off('receive-message');
+      };
+    }
+  }, [socket, addMessageToConversation]);
+
+  //Format again the conversation to see recipients' name, id and message
   const formattedConversations = conversations.map((conversation, index) => {
     const recipients = conversation.recipients.map((recipient) => {
       const contact = contacts.find((contact) => {
@@ -112,16 +140,18 @@ export const ConversationsProvider: React.FC<{ children: React.ReactNode }> = ({
       return { ID: recipient, name };
     });
 
-    const messages = conversation.messages.map((message) => {
-      const contact = contacts.find((contact) => {
-        return contact.ID === message.sender;
+    const messages =
+      conversation.messages &&
+      conversation.messages.map((message) => {
+        const contact = contacts.find((contact) => {
+          return contact.ID === message.sender;
+        });
+
+        const name = (contact && contact.name) || message.sender;
+        const fromMe = whatsappID === message.sender;
+
+        return { ...message, senderName: name, fromMe };
       });
-
-      const name = (contact && contact.name) || message.sender;
-      const fromMe = whatsappID === message.sender;
-
-      return { ...message, senderName: name, fromMe };
-    });
 
     const selected = index === selectedConversationIndex;
 
