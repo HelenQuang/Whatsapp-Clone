@@ -11,12 +11,19 @@
   "dependencies": {
     "@types/node": "18.15.5",
     "@types/react": "18.0.28",
+    "@types/react-bootstrap": "^0.32.32",
     "@types/react-dom": "18.0.11",
+    "bootstrap": "^5.2.3",
     "eslint": "8.36.0",
     "eslint-config-next": "13.2.4",
     "next": "13.2.4",
     "react": "18.2.0",
+    "react-bootstrap": "^2.7.2",
     "react-dom": "18.2.0",
-    "typescript": "5.0.2"
+    "typescript": "5.0.2",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/uuid": "^9.0.1"
   }
 }
